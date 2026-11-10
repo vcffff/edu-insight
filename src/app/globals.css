@@ -1,0 +1,154 @@
+@import "tailwindcss";
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-geist);
+  --color-surface: #f8f9ff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface-container: #e5eeff;
+  --color-surface-container-high: #dce9ff;
+  --color-on-surface: #0b1c30;
+  --color-secondary: #565e74;
+  --color-secondary-fixed: #bec6e0;
+  --color-primary: #3525cd;
+  --color-primary-container: #4f46e5;
+  --color-primary-fixed: #e2dfff;
+  --color-outline-variant: #c7c4d8;
+  --color-tertiary-container: #006e4c;
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-background: #f8f9ff;
+  --color-foreground: #0b1c30;
+}
+:root {
+  color-scheme: light;
+}
+body {
+  margin: 0;
+  background: #f8f9ff;
+  color: #0b1c30;
+  font-size: 14px;
+}
+button,
+a,
+select,
+input[type="range"] {
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled),
+select {
+  cursor: pointer;
+}
+::selection {
+  background: #e2dfff;
+}
+*:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 3px;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.data-table th {
+  padding: 10px 14px;
+  background: #eff4ff;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  font-weight: 600;
+  color: #565e74;
+}
+.data-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid #eff4ff;
+}
+.data-table tr:last-child td {
+  border-bottom: 0;
+}
+.data-table tbody tr {
+  transition: background 0.15s;
+}
+.data-table tbody tr:hover {
+  background: #f8f9ff;
+}
+.data-table th:first-child {
+  border-radius: 7px 0 0 7px;
+}
+.data-table th:last-child {
+  border-radius: 0 7px 7px 0;
+}
+.chart-container {
+  width: 100%;
+  min-width: 0;
+}
+input[type="range"] {
+  accent-color: #4f46e5;
+  height: 5px;
+}
+/* Short, non-blocking entrance; content remains visible without motion support. */
+@keyframes content-arrive {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes chrome-arrive {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes brand-arrive {
+  from { opacity: 0; transform: scale(0.9) rotate(-6deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes accent-reveal {
+  0% { opacity: 0; transform: scaleX(0); }
+  35% { opacity: 0.65; }
+  75% { opacity: 0.35; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .app-header {
+    animation: chrome-arrive 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .app-header::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #4f46e5, #a8a0ff, transparent);
+    transform-origin: left;
+    pointer-events: none;
+    animation: accent-reveal 1000ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .app-brand-mark {
+    animation: brand-arrive 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* New data gets the same soft entrance, even when the API responds later. */
+  .app-content > :not([role="alert"]):not([role="status"]) {
+    animation: content-arrive 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .app-content > :nth-child(2) { animation-delay: 45ms; }
+  .app-content > :nth-child(3) { animation-delay: 90ms; }
+  .app-content > :nth-child(n + 4) { animation-delay: 135ms; }
+}
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .app-navigation > a {
+    animation: content-arrive 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .app-navigation > a:nth-child(2) { animation-delay: 35ms; }
+  .app-navigation > a:nth-child(3) { animation-delay: 70ms; }
+  .app-navigation > a:nth-child(4) { animation-delay: 105ms; }
+  .app-navigation > a:nth-child(5) { animation-delay: 140ms; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
