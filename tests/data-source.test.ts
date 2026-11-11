@@ -216,6 +216,34 @@ test("optimization uses actual topics and scales backend mastery ratios to perce
     assert.equal(result[0].id, "Algebra");
   } finally { globalThis.fetch = old; }
 });
+test("optimizer sends half-hours and locked topics without losing the baseline", async () => {
+  const old = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    if (path === "/api/datasets") return Response.json({ datasets: [backendDataset] });
+    if (path.endsWith("/analytics")) return Response.json(analytics);
+    if (path.endsWith("/optimize")) {
+      const body = JSON.parse(String(init?.body));
+      assert.equal(body.minimum_hours, 2);
+      assert.deepEqual(body.locked_topics, ["Geometry"]);
+      assert.deepEqual(body.current_hours, { Algebra: 18.5, Geometry: 17.5 });
+      return Response.json({ dataset_id: 3, total_hours: 36, method: "Backend", allocations: [
+        { topic: "Algebra", current_hours: 18.5, recommended_hours: 18.5, change: 0, mastery: 0.45, priority: 0.55 },
+        { topic: "Geometry", current_hours: 17.5, recommended_hours: 17.5, change: 0, mastery: 0.85, priority: 0.15 },
+      ] });
+    }
+    throw new Error(`Unexpected path: ${path}`);
+  };
+  try {
+    const result = await createApiProvider("http://backend").optimization({ filters, scenario: "balanced", allocations: [
+      { id: "Algebra", name: "Algebra", hours: 18.5, baseline: 18, mastery: 45, locked: false },
+      { id: "Geometry", name: "Geometry", hours: 17.5, baseline: 18, mastery: 85, locked: true },
+    ] });
+    assert.equal(result[0].baseline, 18);
+    assert.equal(result[1].locked, true);
+  } finally { globalThis.fetch = old; }
+});
+
 test("backend CSV validation details are shown instead of generic file errors", async () => {
   const old = globalThis.fetch;
   globalThis.fetch = async () => Response.json({ detail: "Missing topic column" }, { status: 422 });

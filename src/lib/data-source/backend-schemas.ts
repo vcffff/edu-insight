@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const count = z.number().int().nonnegative();
+const hours = z.number().nonnegative();
 const score = z.number().min(0).max(100);
 export const backendDatasetSchema = z.object({
   id: z.number().int(), dataset_id: z.number().int(), filename: z.string(),
@@ -25,8 +26,8 @@ export const backendAnalyticsSchema = z.object({
   available_filters: z.object({ grades: z.array(z.number().int()), subjects: z.array(z.string()), textbooks: z.array(z.string()), topics: z.array(z.string()) }),
 });
 export const optimizeSchema = z.object({
-  dataset_id: z.number().int().nullable(), total_hours: count, method: z.string(),
-  allocations: z.array(z.object({ topic: z.string(), current_hours: count, recommended_hours: count, change: z.number().int(), mastery: z.number().min(0).max(1), priority: z.number().min(0).max(1) })),
+  dataset_id: z.number().int().nullable(), total_hours: hours, method: z.string(),
+  allocations: z.array(z.object({ topic: z.string(), current_hours: hours, recommended_hours: hours, change: z.number(), mastery: z.number().min(0).max(1), priority: z.number().min(0).max(1) })),
 });
 const evidence = z.object({ metric: z.string(), value: z.unknown(), unit: z.string().nullable().optional() });
 export const reportSchema = z.object({
@@ -34,7 +35,7 @@ export const reportSchema = z.object({
   key_findings: z.array(z.object({ id: z.string(), title: z.string(), description: z.string(), severity: z.enum(["critical", "high", "medium", "low", "info"]), topic: z.string().nullable(), evidence: z.array(evidence) })),
   topic_analysis: z.array(z.object({ topic: z.string(), status: z.enum(["critical", "needs_attention", "satisfactory"]), interpretation: z.string(), main_concern: z.string().nullable() })),
   textbook_analysis: z.array(z.object({ textbook: z.string(), observation: z.string(), confidence: z.enum(["limited", "moderate"]), limitations: z.array(z.string()) })),
-  curriculum_explanation: z.object({ summary: z.string(), total_hours_preserved: z.boolean().nullable(), topic_explanations: z.array(z.object({ topic: z.string(), current_hours: count, recommended_hours: count, reason: z.string() })) }),
+  curriculum_explanation: z.object({ summary: z.string(), total_hours_preserved: z.boolean().nullable(), topic_explanations: z.array(z.object({ topic: z.string(), current_hours: hours, recommended_hours: hours, reason: z.string() })) }),
   recommendations: z.array(z.object({ id: z.string(), title: z.string(), priority: z.enum(["high", "medium", "low"]), action: z.string(), related_topics: z.array(z.string()), evidence: z.array(z.string()) })),
   limitations: z.array(z.string()), data_quality_warnings: z.array(z.string()), generated_language: z.enum(["en", "ru", "kk"]),
 });

@@ -127,14 +127,17 @@ export function createApiProvider(baseUrl: string | undefined, timeoutMs = API_T
       return { rows, nA: 0, nB: 0, averageA: 0, averageB: 0 };
     },
     optimization: async (input, signal) => {
-      const data = await analytics({ grade: "all", school: "all" }, signal);
+      const data = await analytics(input.filters, signal);
       if (!data.backend || !data.topics.length) return [];
       // CSV analytics do not contain teaching hours. These are editable planning defaults, not observed data.
-      const current = input.allocations ?? data.topics.map((t, i) => ({ id: t.id, hours: Math.floor(36 / data.topics.length) + (i < 36 % data.topics.length ? 1 : 0) }));
-      if (current.some((r) => !Number.isInteger(r.hours))) throw new ApiError("API принимает только целое число часов. Округлите значения перед оптимизацией.");
-      const result = await request("/curriculum/optimize", optimizeSchema, { method: "POST", signal, body: { dataset_id: data.backend.dataset_id, current_hours: Object.fromEntries(current.map((r) => [r.id, r.hours])), minimum_hours: 0, max_change_per_topic: 4, weak_threshold: input.scenario === "exam" ? 0.75 : 0.6 } });
-      lastOptimization = result;
-      return result.allocations.map((r) => ({ id: r.topic, name: r.topic, baseline: r.current_hours, hours: r.recommended_hours, mastery: r.mastery * 100, locked: false }));
+      const topics = [...data.topics].sort((a, b) => a.mastery - b.mastery).slice(0, 6);
+      const baseHalfHours = Math.floor(72 / topics.length);
+      const extraHalfHours = 72 % topics.length;
+      const current = input.allocations ?? topics.map((t, i) => ({ id: t.id, name: t.name, hours: (baseHalfHours + (i < extraHalfHours ? 1 : 0)) / 2, baseline: 0, mastery: t.mastery, locked: false }));
+      if (current.some((r) => !Number.isInteger(r.hours * 2) || r.hours < 2)) throw new ApiError("Часы должны быть не меньше 2 и кратны 0,5.");
+      const result = await request("/curriculum/optimize", optimizeSchema, { method: "POST", signal, body: { dataset_id: data.backend.dataset_id, current_hours: Object.fromEntries(current.map((r) => [r.id, r.hours])), minimum_hours: 2, max_change_per_topic: 4, weak_threshold: input.scenario === "exam" ? 0.75 : 0.6, locked_topics: current.filter((r) => r.locked).map((r) => r.id), ...(input.filters.subject && input.filters.subject !== "all" ? { subject: input.filters.subject } : {}), ...(input.filters.grade !== "all" ? { grade: Number(input.filters.grade) } : {}), ...(input.filters.textbook && input.filters.textbook !== "all" ? { textbook: input.filters.textbook } : {}), ...(input.filters.topic && input.filters.topic !== "all" ? { topic: input.filters.topic } : {}) } });
+      lastOptimization = (!input.filters.subject || input.filters.subject === "all") && input.filters.grade === "all" && (!input.filters.textbook || input.filters.textbook === "all") && (!input.filters.topic || input.filters.topic === "all") ? result : undefined;
+      return result.allocations.map((r) => { const previous = current.find((row) => row.id === r.topic); return { id: r.topic, name: r.topic, baseline: input.allocations ? previous?.baseline ?? r.current_hours : r.current_hours, hours: r.recommended_hours, mastery: r.mastery * 100, locked: previous?.locked ?? false }; });
     },
     recommendations: async (filters, signal) => {
       const report = await analysis(signal, false, filters.subject);

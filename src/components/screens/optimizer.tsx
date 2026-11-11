@@ -38,15 +38,14 @@ import { AllocationChart } from "../charts";
 import { cn, download, number } from "@/lib/utils";
 import Papa from "papaparse";
 import { decimal } from "@/lib/locale";
-import { BackendOptimizer } from "./backend-optimizer";
 export function OptimizerScreen() {
-  const { source } = useDataSource();
-  return source === "api" ? <BackendOptimizer /> : <DemoOptimizerScreen />;
+  return <SharedOptimizerScreen />;
 }
-function DemoOptimizerScreen() {
+function SharedOptimizerScreen() {
   const q = useAnalytics();
   const ds = useDataset();
   const allocation = useOptimization();
+  const { filters } = useFilters();
   if (q.isError || ds.isError || allocation.isError)
     return (
       <ErrorState
@@ -62,7 +61,7 @@ function DemoOptimizerScreen() {
   if (!allocation.data.length) return <EmptyState />;
   return (
     <Optimizer
-      key={`${ds.data.id}-${q.data.students}-${q.data.topics.map((t) => t.mastery).join(",")}`}
+      key={`${ds.data.id}-${JSON.stringify(filters)}-${allocation.data.map((t) => `${t.id}:${t.mastery}`).join(",")}`}
       initialRows={allocation.data}
       datasetId={ds.data.id}
     />
@@ -149,7 +148,7 @@ function Optimizer({
       <PageHeading
         title="Оптимизатор программы"
         eyebrow="Планирование программы"
-        subtitle={source === "api" ? "Начальный бюджет 36 часов — редактируемое допущение, не данные CSV. Распределение рассчитывает backend. Сохранение API не поддерживает; используйте экспорт." : "Перераспределите фиксированный бюджет в 36 часов. Изменения автоматически балансируются за счёт незакреплённых тем."}
+        subtitle={source === "api" ? "Распределите плановые 36 часов. Часы не берутся из CSV; готовый план можно выгрузить в файл." : "Перераспределите фиксированный бюджет в 36 часов. Изменения автоматически балансируются за счёт незакреплённых тем."}
       >
         <Button
           variant="outline"
@@ -435,7 +434,7 @@ function Optimizer({
               </div>
               <div className="rounded-lg border border-outline-variant/25 bg-surface p-3">
                 <h3 className="mb-2 text-xs font-semibold">
-                  Источник часов: {donor.name}
+                  {donor.hours < donor.baseline ? `Источник часов: ${donor.name}` : "Источник часов: перераспределение не требуется"}
                 </h3>
                 <p className="text-xs leading-6 text-secondary">
                   Текущее освоение —{" "}
