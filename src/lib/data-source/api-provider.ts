@@ -17,11 +17,13 @@ const emptyAnalytics: Analytics = { students: 0, average: 0, critical: 0, textbo
 
 export function createApiProvider(baseUrl: string | undefined, timeoutMs = API_TIMEOUT_MS): Repository {
   // Accept either the server origin or a URL already ending in /api.
-  const base = baseUrl?.replace(/\/+$/, "").replace(/\/api$/, "");
+  const configuredUrl = baseUrl?.trim();
+  const base = configuredUrl?.replace(/\/+$/, "").replace(/\/api$/, "");
+  const sameOrigin = configuredUrl === "/";
   let active: string | undefined;
   let lastOptimization: z.infer<typeof optimizeSchema> | undefined;
   async function request<T>(path: string, schema: z.ZodType<T>, options: { signal?: AbortSignal; body?: unknown; method?: string; timeout?: number } = {}): Promise<T> {
-    if (!base || !/^https?:\/\//i.test(base)) throw new ApiError("Укажите HTTP(S) адрес сервера в NEXT_PUBLIC_API_URL.");
+    if (!sameOrigin && (!base || !/^https?:\/\//i.test(base))) throw new ApiError("Укажите HTTP(S) адрес сервера или / в NEXT_PUBLIC_API_URL.");
     const controller = new AbortController();
     const abort = () => controller.abort();
     options.signal?.addEventListener("abort", abort, { once: true });
