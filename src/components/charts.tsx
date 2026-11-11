@@ -22,17 +22,25 @@ const tooltipStyle = {
 export function DistributionChart({
   data,
   total,
+  countLabel = "учащихся",
+  totalLabel = countLabel,
+  explanation = "Каждый сектор показывает долю учащихся в диапазоне среднего балла. Диапазон — результат в процентах от максимального балла; доля — размер сектора круга.",
 }: {
   data: Analytics["distribution"];
   total: number;
+  countLabel?: string;
+  totalLabel?: string;
+  explanation?: string;
 }) {
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row">
+    <div className="space-y-4">
+      <p className="text-xs leading-5 text-secondary">{explanation}</p>
+      <div className="flex flex-col items-center gap-4 sm:flex-row">
       <div
         className="relative h-[160px] w-[160px] shrink-0"
         role="img"
         aria-label={data
-          .map((d) => `${d.name}: ${d.value} учащихся`)
+          .map((d) => `${d.name}: ${d.value} ${countLabel}, ${total ? Math.round((d.value / total) * 100) : 0}% от суммы по диапазонам`)
           .join(", ")}
       >
         <ResponsiveContainer width="100%" height="100%">
@@ -53,17 +61,18 @@ export function DistributionChart({
                 <Cell key={d.name} fill={d.color} />
               ))}
             </Pie>
-            <Tooltip contentStyle={tooltipStyle} />
+            <Tooltip contentStyle={tooltipStyle} formatter={(value, name) => [`${value} ${countLabel} (${total ? Math.round((Number(value) / total) * 100) : 0}% от суммы)`, `Диапазон ${name}`]} />
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="font-heading text-2xl font-semibold">
             {total.toLocaleString("ru-RU")}
           </span>
-          <span className="text-[10px] text-secondary">учащихся</span>
+          <span className="text-[10px] text-secondary">{totalLabel}</span>
         </div>
       </div>
       <div className="w-full space-y-3">
+        <div className="flex gap-2 text-[10px] text-secondary"><span className="flex-1">Диапазон балла</span><span className="w-12 text-right">Доля</span><span className="w-14 text-right">Кол-во</span></div>
         {data.map((d) => (
           <div className="flex items-center gap-2 text-[11px]" key={d.name}>
             <span
@@ -71,14 +80,15 @@ export function DistributionChart({
               style={{ background: d.color }}
             />
             <span className="flex-1 text-secondary">{d.name}</span>
-            <span className="font-semibold tabular-nums">
+            <span className="w-12 text-right font-semibold tabular-nums">
               {total ? Math.round((d.value / total) * 100) : 0}%
             </span>
-            <span className="w-8 text-right tabular-nums text-secondary">
+            <span className="w-14 text-right tabular-nums text-secondary">
               {d.value}
             </span>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );
