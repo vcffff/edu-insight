@@ -18,6 +18,7 @@ export function PageHeading({
   subtitle?: string;
   children?: React.ReactNode;
 }) {
+  const { source } = useDataSource();
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
       <div>
@@ -27,9 +28,9 @@ export function PageHeading({
               {eyebrow}
             </Badge>
             <span className="size-1.5 rounded-full bg-tertiary-container" />
-            <span className="text-[11px] text-secondary">
+            {source === "mock" && <span className="text-[11px] text-secondary">
               Исходные данные · III четверть
-            </span>
+            </span>}
           </div>
         )}
         <h1 className="font-heading text-2xl font-semibold tracking-[-0.025em]">

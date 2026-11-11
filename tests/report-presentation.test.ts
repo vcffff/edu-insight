@@ -7,6 +7,7 @@ test("report evidence uses readable labels and preserves unknown metrics", () =>
   assert.equal(metricLabel("custom_backend_metric"), "custom backend metric");
   assert.equal(evidenceUnit("hours"), "ч.");
   assert.equal(evidenceUnit("percent"), "%");
+  assert.equal(evidenceUnit("ratio"), "");
   assert.equal(evidenceUnit("custom"), "custom");
   assert.equal(evidenceUnit(null), "");
 });
@@ -14,6 +15,7 @@ test("report evidence uses readable labels and preserves unknown metrics", () =>
 test("report evidence does not invent percentages or missing values", () => {
   assert.equal(evidenceValue(0), "0");
   assert.equal(evidenceValue(0.44), "0,44");
+  assert.equal(evidenceValue(0.35, "ratio"), "35%");
   assert.equal(evidenceValue(null), "Нет данных");
   assert.equal(evidenceValue(undefined), "Нет данных");
   assert.equal(evidenceValue(false), "Нет");

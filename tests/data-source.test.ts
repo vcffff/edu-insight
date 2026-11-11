@@ -6,10 +6,11 @@ const filters = { grade: "all", school: "all" };
 const backendDataset = { id: 3, dataset_id: 3, filename: "scores.csv", row_count: 12, created_at: "2026-11-10T12:00:00Z", status: "uploaded" };
 const analytics = {
   dataset_id: 3, generated_at: "2026-11-10T12:00:00Z",
-  overview: { total_students: 8, average_score: 65, total_topics: 2, critical_topics: 1 },
-  topic_mastery: [{ topic: "Algebra", score: 45, student_count: 4 }, { topic: "Geometry", score: 85, student_count: 4 }],
+  overview: { total_students: 8, total_observations: 12, average_score: 65, total_topics: 2, critical_topics: 1 },
+  topic_mastery: [{ topic: "Algebra", score: 45, student_count: 4, sample_size: 6, below_target_count: 5 }, { topic: "Geometry", score: 85, student_count: 4, sample_size: 6, below_target_count: 0 }],
   performance_trend: [{ assessment_date: "2026-11-01", score: 65, student_count: 8 }],
   score_distribution: [{ score_range: "0–59", students_count: 4 }, { score_range: "60–100", students_count: 4 }],
+  student_average_distribution: [{ score_range: "<60", students_count: 3 }, { score_range: "60–74", students_count: 3 }, { score_range: "75–84", students_count: 1 }, { score_range: "≥85", students_count: 1 }],
   textbook_comparison: [{ textbook: "A", topic: "Algebra", average_score: 45, student_count: 4 }, { textbook: "B", topic: "Algebra", average_score: 65, student_count: 4 }],
   topic_performance: [{ topic: "Algebra", correct_answers: 4, incorrect_answers: 6 }],
   data_quality_warnings: ["Small sample"], available_filters: { grades: [10], subjects: ["Math"], textbooks: ["A", "B"], topics: ["Algebra", "Geometry"] },
@@ -61,6 +62,9 @@ test("live adapter passes filters and validates real response payloads", async (
     assert.equal(result.students, 8);
     assert.equal(result.records, 12);
     assert.equal(result.topics[0].mastery, 45);
+    assert.equal(result.topics[0].belowTarget, 5);
+    assert.equal(result.distribution.reduce((sum, group) => sum + group.value, 0), 8);
+    assert.equal(result.distribution[0].name, "<60");
     assert.equal(result.backend?.performance_trend.length, 1);
     assert.deepEqual(result.campuses, []);
     assert.equal(
@@ -162,6 +166,37 @@ test("uploads send the original CSV as multipart and select the persisted backen
     assert.deepEqual(result.dataset.records, []);
   } finally { globalThis.fetch = old; }
 });
+test("item answers upload to the selected dataset and skill diagnostics stay scoped", async () => {
+  const old = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.endsWith("/items/upload")) {
+      assert.equal(init?.method, "POST");
+      assert.ok(init?.body instanceof FormData);
+      return Response.json({ dataset_id: 3, row_count: 5, skill_count: 1 });
+    }
+    return Response.json({ dataset_id: 3, item_response_count: 5, skills: [{
+      topic: "Algebra", skill: "Linear equations", correct_answers: 1,
+      incorrect_answers: 4, student_count: 5, item_count: 1,
+      accuracy_percent: 20, status: "needs_attention",
+      suggested_action: "Проведите повторную диагностику.",
+    }] });
+  };
+  try {
+    const provider = createApiProvider("http://backend");
+    const file = new File(["student_id,topic,skill,item_id,is_correct\n"], "items.csv", { type: "text/csv" });
+    assert.equal((await provider.uploadItems!("3", file)).row_count, 5);
+    assert.equal((await provider.skills!("3", "Algebra")).skills[0].incorrect_answers, 4);
+    assert.deepEqual(urls, [
+      "http://backend/api/datasets/3/items/upload",
+      "http://backend/api/datasets/3/skills?topic=Algebra",
+    ]);
+  } finally {
+    globalThis.fetch = old;
+  }
+});
 test("optimization uses actual topics and scales backend mastery ratios to percentages", async () => {
   const old = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
@@ -187,7 +222,7 @@ test("backend CSV validation details are shown instead of generic file errors", 
   try { await assert.rejects(() => createApiProvider("http://backend").uploadFile!(new File(["x"], "x.csv")), /Missing topic column/); }
   finally { globalThis.fetch = old; }
 });
-test("report generation receives the complete optimization and completed reports use the stored endpoint", async () => {
+test("report generation receives the complete optimization and uses the scoped endpoint", async () => {
   const old = globalThis.fetch;
   const optimization = { dataset_id: 3, total_hours: 36, method: "Backend priority transfer", allocations: [{ topic: "Algebra", current_hours: 18, recommended_hours: 22, change: 4, mastery: 0.45, priority: 0.55 }, { topic: "Geometry", current_hours: 18, recommended_hours: 14, change: -4, mastery: 0.85, priority: 0.15 }] };
   const report = {
@@ -197,27 +232,22 @@ test("report generation receives the complete optimization and completed reports
     recommendations: [{ id: "r1", title: "Practice Algebra", priority: "high", action: "Add focused practice", related_topics: ["Algebra"], evidence: ["45% mastery"] }],
     limitations: ["Small sample"], data_quality_warnings: [], generated_language: "ru",
   };
-  let completed = false;
   let generated = 0;
-  let stored = 0;
   globalThis.fetch = async (url, init) => {
     const path = new URL(String(url)).pathname;
     if (path === "/api/datasets") return Response.json({ datasets: [backendDataset] });
     if (path.endsWith("/analytics")) return Response.json(analytics);
     if (path.endsWith("/optimize")) return Response.json(optimization);
-    if (path.endsWith("/status")) return Response.json({ dataset_id: 3, status: completed ? "completed" : "uploaded", report_id: completed ? 9 : null });
     if (path.endsWith("/analyze")) {
       const body = JSON.parse(String(init?.body));
-      assert.deepEqual(body.optimization, optimization);
+      if (body.subject === "Math") assert.equal(body.optimization, undefined);
+      else assert.deepEqual(body.optimization, optimization);
       assert.equal(body.language, "ru");
       assert.equal(body.dataset_id, 3);
       generated++;
-      completed = true;
       return Response.json(report);
     }
-    assert.equal(path, "/api/datasets/3/report");
-    stored++;
-    return Response.json({ id: 9, dataset_id: 3, status: "completed", report, created_at: backendDataset.created_at });
+    throw new Error(`Unexpected path: ${path}`);
   };
   try {
     const provider = createApiProvider("http://backend");
@@ -226,19 +256,41 @@ test("report generation receives the complete optimization and completed reports
     const recs = await provider.recommendations(filters);
     assert.equal(recs[0].title, "Practice Algebra");
     assert.equal(recs[0].priority, "High priority");
-    assert.equal(generated, 1);
-    assert.equal(stored, 1);
-    await provider.analysis!(undefined, true);
     assert.equal(generated, 2);
+    await provider.analysis!(undefined, true);
+    assert.equal(generated, 3);
+    await provider.analysis!(undefined, false, "Math");
+    assert.equal(generated, 4);
   } finally { globalThis.fetch = old; }
 });
-test("processing reports wait without duplicate analysis requests", async () => {
+test("processing reports surface the API conflict", async () => {
   const old = globalThis.fetch;
   globalThis.fetch = async (url) => {
     if (String(url).endsWith("/datasets")) return Response.json({ datasets: [backendDataset] });
-    assert.ok(String(url).endsWith("/status"));
-    return Response.json({ dataset_id: 3, status: "processing", report_id: null });
+    assert.ok(String(url).endsWith("/analyze"));
+    return Response.json({ detail: "Analysis is processing" }, { status: 409 });
   };
-  try { await assert.rejects(() => createApiProvider("http://backend").analysis!(), (error: unknown) => error instanceof Error && error.message.includes("обрабатывается")); }
+  try { await assert.rejects(() => createApiProvider("http://backend").analysis!(), (error: unknown) => error instanceof Error && error.message.includes("409")); }
   finally { globalThis.fetch = old; }
+});
+test("report analysis does not blame the CSV for an earlier failure", async () => {
+  const old = globalThis.fetch;
+  let generated = false;
+  globalThis.fetch = async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path === "/api/datasets") return Response.json({ datasets: [backendDataset] });
+    assert.equal(path, "/api/recommendations/analyze");
+    generated = true;
+    return Response.json({
+      executive_summary: { title: "Report recovered", summary: "Based on data", overall_status: "satisfactory", key_findings_count: 0 },
+      key_findings: [], topic_analysis: [], textbook_analysis: [],
+      curriculum_explanation: { summary: "No hours", total_hours_preserved: null, topic_explanations: [] },
+      recommendations: [], limitations: [], data_quality_warnings: [], generated_language: "ru",
+    });
+  };
+  try {
+    const report = await createApiProvider("http://backend").analysis!();
+    assert.equal(report?.executive_summary.title, "Report recovered");
+    assert.equal(generated, true);
+  } finally { globalThis.fetch = old; }
 });

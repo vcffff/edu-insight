@@ -19,7 +19,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useRecommendations } from "../providers";
+import { useRecommendations, useDataset } from "../providers";
 import { useDataSource } from "@/hooks/use-data-source";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -29,7 +29,8 @@ import { download } from "@/lib/utils";
 import { BackendRecommendations } from "./backend-recommendations";
 export function RecommendationsScreen() {
   const { source } = useDataSource();
-  return source === "api" ? <BackendRecommendations /> : <DemoRecommendationsScreen />;
+  const dataset = useDataset();
+  return source === "api" ? <BackendRecommendations key={dataset.data?.id ?? "loading"} /> : <DemoRecommendationsScreen />;
 }
 function DemoRecommendationsScreen() {
   const q = useRecommendations();

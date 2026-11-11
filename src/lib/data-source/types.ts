@@ -27,10 +27,12 @@ export interface OptimizationInput {
 }
 export interface Repository {
   health?(signal?: AbortSignal): Promise<{ status: "ok"; database: "ok" | "unavailable" }>;
-  analysis?(signal?: AbortSignal, regenerate?: boolean): Promise<import("./backend-schemas").BackendReport | null>;
+  analysis?(signal?: AbortSignal, regenerate?: boolean, subject?: string): Promise<import("./backend-schemas").BackendReport | null>;
   datasets?(signal?: AbortSignal): Promise<Dataset[]>;
   selectDataset?(id: string): void;
   uploadFile?(file: File): Promise<{ dataset: Dataset; persisted: boolean }>;
+  uploadItems?(datasetId: string, file: File): Promise<{ dataset_id: number; row_count: number; skill_count: number }>;
+  skills?(datasetId: string, topic?: string, signal?: AbortSignal, subject?: string): Promise<import("./backend-schemas").SkillAnalytics>;
   dataset(signal?: AbortSignal): Promise<Dataset>;
   analytics(filters: Filters, signal?: AbortSignal): Promise<Analytics>;
   textbooks(filters: Filters, signal?: AbortSignal): Promise<string[]>;

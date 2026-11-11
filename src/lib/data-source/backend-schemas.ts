@@ -14,10 +14,11 @@ export const statusSchema = z.object({
 });
 export const backendAnalyticsSchema = z.object({
   dataset_id: z.number().int(), generated_at: z.string(),
-  overview: z.object({ total_students: count, average_score: score.nullable(), total_topics: count, critical_topics: count }),
-  topic_mastery: z.array(z.object({ topic: z.string(), score, student_count: count })),
+  overview: z.object({ total_students: count, total_observations: count.optional(), average_score: score.nullable(), total_topics: count, critical_topics: count }),
+  topic_mastery: z.array(z.object({ topic: z.string(), score, student_count: count, sample_size: count.optional(), below_target_count: count.optional() })),
   performance_trend: z.array(z.object({ assessment_date: z.string(), score, student_count: count })),
   score_distribution: z.array(z.object({ score_range: z.string(), students_count: count })),
+  student_average_distribution: z.array(z.object({ score_range: z.string(), students_count: count })).optional(),
   textbook_comparison: z.array(z.object({ textbook: z.string(), topic: z.string(), average_score: score, student_count: count })),
   topic_performance: z.array(z.object({ topic: z.string(), correct_answers: count, incorrect_answers: count })),
   data_quality_warnings: z.array(z.string()),
@@ -38,5 +39,17 @@ export const reportSchema = z.object({
   limitations: z.array(z.string()), data_quality_warnings: z.array(z.string()), generated_language: z.enum(["en", "ru", "kk"]),
 });
 export const storedReportSchema = z.object({ id: z.number().int(), dataset_id: z.number().int(), status: z.literal("completed"), report: reportSchema, created_at: z.string() });
+export const itemImportSchema = z.object({ dataset_id: z.number().int(), row_count: count, skill_count: count });
+export const skillAnalyticsSchema = z.object({
+  dataset_id: z.number().int(), item_response_count: count,
+  skills: z.array(z.object({
+    subject: z.string().nullable().optional(),
+    topic: z.string(), skill: z.string(), correct_answers: count, incorrect_answers: count,
+    student_count: count, item_count: count, accuracy_percent: score,
+    status: z.enum(["insufficient_data", "needs_attention", "on_target"]),
+    suggested_action: z.string(),
+  })),
+});
 export type BackendAnalytics = z.infer<typeof backendAnalyticsSchema>;
 export type BackendReport = z.infer<typeof reportSchema>;
+export type SkillAnalytics = z.infer<typeof skillAnalyticsSchema>;

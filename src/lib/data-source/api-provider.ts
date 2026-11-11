@@ -2,7 +2,7 @@ import { z } from "zod";
 import { toCSV } from "../csv";
 import type { Analytics, Dataset, Filters } from "../types";
 import type { Repository } from "./types";
-import { backendAnalyticsSchema, backendDatasetSchema, datasetListSchema, optimizeSchema, reportSchema, statusSchema, storedReportSchema } from "./backend-schemas";
+import { backendAnalyticsSchema, backendDatasetSchema, datasetListSchema, itemImportSchema, optimizeSchema, reportSchema, skillAnalyticsSchema } from "./backend-schemas";
 
 export class ApiError extends Error {
   constructor(message: string, public status?: number) {
@@ -80,9 +80,9 @@ export function createApiProvider(baseUrl: string | undefined, timeoutMs = API_T
     return {
       students: raw.overview.total_students, average: raw.overview.average_score ?? 0, critical: raw.overview.critical_topics,
       textbooks: raw.available_filters.textbooks,
-      topics: raw.topic_mastery.map((t) => ({ id: t.topic, name: t.topic, short: t.topic, domain: "—", mastery: t.score, students: t.student_count, belowTarget: 0 })),
-      distribution: raw.score_distribution.map((p, i) => ({ name: p.score_range, value: p.students_count, color: ["#ba1a1a", "#b7791f", "#565e74", "#00856a", "#3525cd"][i % 5] })),
-      campuses: [], records: ds.rowCount ?? 0, heatmap: [], backend: raw,
+      topics: raw.topic_mastery.map((t) => ({ id: t.topic, name: t.topic, short: t.topic, domain: "—", mastery: t.score, students: t.student_count, belowTarget: t.below_target_count ?? 0 })),
+      distribution: (raw.student_average_distribution ?? raw.score_distribution).map((p, i) => ({ name: p.score_range, value: p.students_count, color: ["#ba1a1a", "#b7791f", "#565e74", "#00856a", "#3525cd"][i % 5] })),
+      campuses: [], records: raw.overview.total_observations ?? ds.rowCount ?? 0, heatmap: [], backend: raw,
     };
   }
   const uploadFile = async (file: File) => {
@@ -92,19 +92,26 @@ export function createApiProvider(baseUrl: string | undefined, timeoutMs = API_T
     selectDataset(saved.id);
     return { dataset: saved, persisted: true };
   };
-  async function analysis(signal?: AbortSignal, regenerate = false) {
+  async function analysis(signal?: AbortSignal, _regenerate = false, subject?: string) {
+    void _regenerate;
     const ds = await dataset(signal);
     if (ds.id === emptyDataset.id) return null;
-    const status = await request(`/datasets/${ds.id}/status`, statusSchema, { signal });
-    if (status.status === "failed") throw new ApiError("Обработка набора завершилась ошибкой. Загрузите исправленный CSV.");
-    if (status.status === "processing") throw new ApiError("Отчёт обрабатывается. Повторите запрос позже.", 409);
-    const optimization = lastOptimization?.dataset_id === Number(ds.id) ? lastOptimization : undefined;
-    if (!regenerate && status.status === "completed" && status.report_id !== null)
-      return (await request(`/datasets/${ds.id}/report`, storedReportSchema, { signal })).report;
-    return request("/recommendations/analyze", reportSchema, { method: "POST", signal, timeout: Math.max(timeoutMs, 120000), body: { dataset_id: Number(ds.id), language: "ru", ...(optimization ? { optimization } : {}) } });
+    const optimization = (!subject || subject === "all") && lastOptimization?.dataset_id === Number(ds.id) ? lastOptimization : undefined;
+    return request("/recommendations/analyze", reportSchema, { method: "POST", signal, timeout: Math.max(timeoutMs, 120000), body: { dataset_id: Number(ds.id), language: "ru", ...(subject && subject !== "all" ? { subject } : {}), ...(optimization ? { optimization } : {}) } });
   }
   return {
     dataset, datasets, selectDataset, uploadFile, analytics, analysis,
+    uploadItems: async (datasetId, file) => {
+      const body = new FormData();
+      body.append("file", file, file.name);
+      return request(`/datasets/${encodeURIComponent(datasetId)}/items/upload`, itemImportSchema, { method: "POST", body });
+    },
+    skills: (datasetId, topic, signal, subject) => {
+      const params = new URLSearchParams();
+      if (topic) params.set("topic", topic);
+      if (subject && subject !== "all") params.set("subject", subject);
+      return request(`/datasets/${encodeURIComponent(datasetId)}/skills${params.size ? `?${params}` : ""}`, skillAnalyticsSchema, { signal });
+    },
     health: (signal) => request("/health", z.object({ status: z.literal("ok"), database: z.enum(["ok", "unavailable"]) }), { signal }),
     upload: (data) => uploadFile(new File([toCSV(data.records)], `${data.name}.csv`, { type: "text/csv" })),
     textbooks: async (filters, signal) => (await analytics(filters, signal)).textbooks,
@@ -129,8 +136,8 @@ export function createApiProvider(baseUrl: string | undefined, timeoutMs = API_T
       lastOptimization = result;
       return result.allocations.map((r) => ({ id: r.topic, name: r.topic, baseline: r.current_hours, hours: r.recommended_hours, mastery: r.mastery * 100, locked: false }));
     },
-    recommendations: async (_filters, signal) => {
-      const report = await analysis(signal);
+    recommendations: async (filters, signal) => {
+      const report = await analysis(signal, false, filters.subject);
       if (!report) return [];
       return report.recommendations.map((r) => ({ id: r.id, kind: "diagnostic" as const, priority: r.priority === "high" ? "High priority" as const : "Review" as const, title: r.title, description: r.action, evidence: r.evidence, explanation: [report.executive_summary.summary, ...report.topic_analysis.filter((t) => r.related_topics.includes(t.topic)).map((t) => t.interpretation), ...report.limitations, ...report.data_quality_warnings].join("\n"), href: "/topic-analytics", action: "Изучить результаты" }));
     },

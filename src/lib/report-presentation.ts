@@ -12,17 +12,20 @@ const labels: Record<string, string> = {
   textbook: "Учебник",
   score: "Балл",
   sample_size: "Размер выборки",
+  skill_accuracy: "Точность по навыку",
+  incorrect_answers: "Неверных ответов",
 };
 
 export function metricLabel(metric: string): string {
   return labels[metric] ?? metric.replace(/_/g, " ");
 }
 
-export function evidenceValue(value: unknown): string {
+export function evidenceValue(value: unknown, unit?: string | null): string {
   if (value === null || value === undefined) return "Нет данных";
+  if (unit === "ratio" && typeof value === "number") return `${(value * 100).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`;
   if (typeof value === "number") return value.toLocaleString("ru-RU", { maximumFractionDigits: 4 });
   if (typeof value === "boolean") return value ? "Да" : "Нет";
-  if (Array.isArray(value)) return value.length ? value.map(evidenceValue).join("; ") : "Нет данных";
+  if (Array.isArray(value)) return value.length ? value.map((item) => evidenceValue(item)).join("; ") : "Нет данных";
   if (typeof value === "object") {
     const entries = Object.entries(value);
     return entries.length ? entries.map(([key, item]) => `${metricLabel(key)}: ${evidenceValue(item)}`).join("; ") : "Нет данных";
@@ -32,5 +35,5 @@ export function evidenceValue(value: unknown): string {
 
 export function evidenceUnit(unit?: string | null): string {
   if (!unit) return "";
-  return ({ percent: "%", percentage: "%", hours: "ч.", students: "учащихся", points: "баллов" } as Record<string, string>)[unit] ?? unit;
+  return ({ ratio: "", percent: "%", percentage: "%", hours: "ч.", students: "учащихся", points: "баллов", answers: "ответов", records: "записей" } as Record<string, string>)[unit] ?? unit;
 }
