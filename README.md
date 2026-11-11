@@ -25,6 +25,7 @@ Overview → Topic-level diagnosis → Teaching-hour optimization
                                          ↓
                               Recommendations and export
 ```
+<img width="1983" height="793" alt="image" src="https://github.com/user-attachments/assets/8d82e14b-8782-4ea8-9c86-345f95a35ce8" />
 
 | Step | What the educator sees |
 | --- | --- |
